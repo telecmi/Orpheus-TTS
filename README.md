@@ -56,39 +56,47 @@ Baseten is our [preferred inference partner](https://www.baseten.co/blog/canopy-
    cd Orpheus-TTS && pip install orpheus-speech # uses vllm under the hood for fast inference
    ```
    vllm pushed a slightly buggy version on March 18th so some bugs are being resolved by reverting to `pip install vllm==0.7.3` after `pip install orpheus-speech`
+
+   
 4. Run the example below:
    ```python
    from orpheus_tts import OrpheusModel
    import wave
    import time
    
-   model = OrpheusModel(model_name ="canopylabs/orpheus-tts-0.1-finetune-prod", max_model_len=2048)
-   prompt = '''Man, the way social media has, um, completely changed how we interact is just wild, right? Like, we're all connected 24/7 but somehow people feel more alone than ever. And don't even get me started on how it's messing with kids' self-esteem and mental health and whatnot.'''
-
+   ## checkpoints folder form huggingface 
+   ## https://huggingface.co/telecmiusa/OrpheusTTS/tree/main/checkpoints
+   
+   model = OrpheusModel(model_name ="checkpoints", max_model_len=2048)
+   prompt ='''Delhi की एक retail chain ने हमारे solutions से अपनी sales में 30% तक वृद्धि देखी है। <hmm..> उनका feedback बहुत encouraging रहा है ।'''
+   filename = "prompt-hi.wav"
    start_time = time.monotonic()
    syn_tokens = model.generate_speech(
       prompt=prompt,
-      voice="tara",
+      voice=None,
       )
 
-   with wave.open("output.wav", "wb") as wf:
+   with wave.open(filename, "wb") as wf:
       wf.setnchannels(1)
       wf.setsampwidth(2)
       wf.setframerate(24000)
 
       total_frames = 0
       chunk_counter = 0
-      for audio_chunk in syn_tokens: # output streaming
+      for audio_chunk in syn_tokens:  # output streaming
          chunk_counter += 1
          frame_count = len(audio_chunk) // (wf.getsampwidth() * wf.getnchannels())
          total_frames += frame_count
          wf.writeframes(audio_chunk)
       duration = total_frames / wf.getframerate()
 
-      end_time = time.monotonic()
-      print(f"It took {end_time - start_time} seconds to generate {duration:.2f} seconds of audio")
-   ```
+   end_time = time.monotonic()
+   print(f"It took {end_time - start_time} seconds to generate {duration:.2f} seconds of audio")
+   Audio(filename)
 
+   # inference script is in Orpheus-TTS/realtime_streaming_example/streaming.py
+
+   ```
 
 
 #### Additional Functionality
