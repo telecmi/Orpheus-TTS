@@ -1,67 +1,60 @@
 import asyncio
 import torch
-import os
 from vllm import AsyncLLMEngine, AsyncEngineArgs, SamplingParams
 from transformers import AutoTokenizer
 import threading
 import queue
-from .decoder import tokens_decoder_sync
-
+from .decoder import tokens_decoder_sync, tokens_decoder
+import uuid
 class OrpheusModel:
-    def __init__(self, model_name, dtype=torch.bfloat16, tokenizer='canopylabs/orpheus-3b-0.1-pretrained', **engine_kwargs):
-        self.model_name = self._map_model_params(model_name)
+    def __init__(self, model_name, dtype=torch.bfloat16):
+        self.model_name = model_name #self._map_model_params(model_name)
         self.dtype = dtype
-        self.engine_kwargs = engine_kwargs  # vLLM engine kwargs
         self.engine = self._setup_engine()
-        self.available_voices = ["zoe", "zac","jess", "leo", "mia", "julia", "leah"]
-        
-        # Use provided tokenizer path or default to model_name
-        tokenizer_path = tokenizer if tokenizer else model_name
-        self.tokenizer = self._load_tokenizer(tokenizer_path)
+        self.available_voices = ["zoe", "zac","jess", "leo", "mia", "julia", "leah", "ऋतिका"]
+        self.tokeniser = AutoTokenizer.from_pretrained(model_name)
+        self._warmed_up = False
 
-    def _load_tokenizer(self, tokenizer_path):
-        """Load tokenizer from local path or HuggingFace hub"""
-        try:
-            # Check if tokenizer_path is a local directory
-            if os.path.isdir(tokenizer_path):
-                return AutoTokenizer.from_pretrained(tokenizer_path, local_files_only=True)
-            else:
-                return AutoTokenizer.from_pretrained(tokenizer_path)
-        except Exception as e:
-            print(f"Error loading tokenizer: {e}")
-            print(f"Falling back to default tokenizer")
-            return AutoTokenizer.from_pretrained("gpt2")
-    
-    def _map_model_params(self, model_name):
-        model_map = {
-            # "nano-150m":{
-            #     "repo_id": "canopylabs/orpheus-tts-0.1-finetune-prod",
-            # }, 
-            # "micro-400m":{
-            #     "repo_id": "canopylabs/orpheus-tts-0.1-finetune-prod",
-            # }, 
-            # "small-1b":{
-            #     "repo_id": "canopylabs/orpheus-tts-0.1-finetune-prod",
-            # },
-            "medium-3b":{
-                "repo_id": "canopylabs/orpheus-tts-0.1-finetune-prod",
-            },
-        }
-        unsupported_models = ["nano-150m", "micro-400m", "small-1b"]
-        if (model_name  in unsupported_models):
-            raise ValueError(f"Model {model_name} is not supported. Only medium-3b is supported, small, micro and nano models will be released very soon")
-        elif model_name in model_map:
-            return model_name[model_name]["repo_id"]
-        else:
-            return model_name
-        
+        # Pre-warm the model
+        # asyncio.run(self._prewarm())
+    # def _map_model_params(self, model_name):
+    #     model_map = {
+    #         # "nano-150m":{
+    #         #     "repo_id": "canopylabs/orpheus-tts-0.1-finetune-prod",
+    #         # }, 
+    #         # "micro-400m":{
+    #         #     "repo_id": "canopylabs/orpheus-tts-0.1-finetune-prod",
+    #         # }, 
+    #         # "small-1b":{
+    #         #     "repo_id": "canopylabs/orpheus-tts-0.1-finetune-prod",
+    #         # },
+    #         "medium-3b":{
+    #             # "repo_id": "canopylabs/orpheus-tts-0.1-finetune-prod",
+    #             # "repo_id":  "canopylabs/3b-hi-ft-research_release"
+    #             "repo_id":"SachinTelecmi/Orpheus-tts-hi"
+    #         },
+    #     }
+    #     unsupported_models = ["nano-150m", "micro-400m", "small-1b"]
+    #     if (model_name  in unsupported_models):
+    #         raise ValueError(f"Model {model_name} is not supported. Only medium-3b is supported, small, micro and nano models will be released very soon")
+    #     elif model_name in model_map:
+    #         return model_name[model_name]["repo_id"]
+    #     else:
+    #         return model_name
+     
     def _setup_engine(self):
         engine_args = AsyncEngineArgs(
             model=self.model_name,
-            dtype=self.dtype,
-            **self.engine_kwargs
+            dtype= "auto", #self.dtype,
+            quantization="bitsandbytes",  # Try this first
+            load_format="bitsandbytes",  
+            max_model_len=2048,
+            gpu_memory_utilization=0.9,
+            max_num_batched_tokens=2048,  # Add this
+            enable_prefix_caching=True,
+            enforce_eager=False,
+            max_num_seqs = 1
         )
-        
         return AsyncLLMEngine.from_engine_args(engine_args)
     
     def validate_voice(self, voice):
@@ -78,26 +71,32 @@ class OrpheusModel:
         else:
             if voice:
                 adapted_prompt = f"{voice}: {prompt}"
-                prompt_tokens = self.tokenizer(adapted_prompt, return_tensors="pt")
+                prompt_tokens = self.tokeniser(adapted_prompt, return_tensors="pt")
                 start_token = torch.tensor([[ 128259]], dtype=torch.int64)
                 end_tokens = torch.tensor([[128009, 128260, 128261, 128257]], dtype=torch.int64)
                 all_input_ids = torch.cat([start_token, prompt_tokens.input_ids, end_tokens], dim=1)
-                prompt_string = self.tokenizer.decode(all_input_ids[0])
+                prompt_string = self.tokeniser.decode(all_input_ids[0])
                 return prompt_string
             else:
-                prompt_tokens = self.tokenizer(prompt, return_tensors="pt")
+                prompt_tokens = self.tokeniser(prompt, return_tensors="pt")
                 start_token = torch.tensor([[ 128259]], dtype=torch.int64)
                 end_tokens = torch.tensor([[128009, 128260, 128261, 128257]], dtype=torch.int64)
                 all_input_ids = torch.cat([start_token, prompt_tokens.input_ids, end_tokens], dim=1)
-                prompt_string = self.tokenizer.decode(all_input_ids[0])
+                prompt_string = self.tokeniser.decode(all_input_ids[0])
                 return prompt_string
 
- 
 
-
-    def generate_tokens_sync(self, prompt, voice=None, request_id="req-001", temperature=0.6, top_p=0.8, max_tokens=1200, stop_token_ids = [49158], repetition_penalty=1.3):
+    def generate_tokens_sync(self, prompt, voice=None, 
+                             request_id=None ,
+                             temperature=0.4, top_p=0.8, 
+                             max_tokens=1200, 
+                             stop_token_ids = [49158], 
+                             repetition_penalty=1.1
+                            ):
+        if request_id is None:
+            request_id = f"req-{uuid.uuid4()}",
         prompt_string = self._format_prompt(prompt, voice)
-        print(prompt)
+        # print(prompt)
         sampling_params = SamplingParams(
         temperature=temperature,
         top_p=top_p,
@@ -130,5 +129,58 @@ class OrpheusModel:
     
     def generate_speech(self, **kwargs):
         return tokens_decoder_sync(self.generate_tokens_sync(**kwargs))
+    
+    async def generate_tokens_async(
+        self, prompt, voice=None, request_id=None,
+        temperature=0.5, top_p=0.5, max_tokens=1024,
+        stop_token_ids=[49158], repetition_penalty=1.05
+    ):
+        if request_id is None:
+            request_id = f"req-{uuid.uuid4()}"
+        prompt_string = self._format_prompt(prompt, voice)
+        sampling_params = SamplingParams(
+            temperature=temperature,
+            top_p=top_p,
+            max_tokens=max_tokens,
+            stop_token_ids=stop_token_ids,
+            repetition_penalty=repetition_penalty,
+        )
+
+        prev = ""
+        async for result in self.engine.generate(
+            prompt=prompt_string,
+            sampling_params=sampling_params,
+            request_id=request_id,
+        ):
+            full = result.outputs[0].text  # cumulative
+            delta = full[len(prev):]
+            if delta:
+                yield delta
+                prev = full
+
+    async def generate_speech_async(self, **kwargs):
+        # tokens_decoder is YOUR async decoder from the snippet
+        async for audio_bytes in tokens_decoder(self.generate_tokens_async(**kwargs)):
+            yield audio_bytes  # PCM16 bytes from SNAC
+
+
+    async def ensure_warm(self):
+        """Call this before first use"""
+        if not self._warmed_up:
+            await self._prewarm()
+            self._warmed_up = True
+
+
+    async def _prewarm(self):
+        """Pre-warm the model with a dummy request"""
+        dummy_prompt = ["नमस्ते","Delhi की एक retail chain","<hmm..> उनका feedback बहुत encouraging रहा है ।"]
+        for dummy  in dummy_prompt:
+            async for _ in self.generate_tokens_async(
+                dummy, 
+                voice=None,
+                max_tokens=50,
+                temperature=0.1
+            ):
+                pass  # Just generate first token to warm up
 
 

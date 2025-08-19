@@ -4,16 +4,18 @@ import torch
 import asyncio
 import threading
 import queue
-import os
 
 
 model = SNAC.from_pretrained("hubertsiuzdak/snac_24khz").eval()
 
-snac_device = os.environ.get("SNAC_DEVICE", "cuda" if torch.cuda.is_available() else "cpu")
+snac_device = "cuda"
 model = model.to(snac_device)
 
 
 def convert_to_audio(multiframe, count):
+
+  #return audio bytes
+
   frames = []
   if len(multiframe) < 7:
     return
@@ -91,23 +93,75 @@ def turn_token_into_id(token_string, index):
         return None
   
     
+# async def tokens_decoder(token_gen):
+#     buffer = []
+#     count = 0
+#     async for token_sim in token_gen:       
+#         token = turn_token_into_id(token_sim, count)
+#         if token is None:
+#             pass
+#         else:
+#             if token > 0:
+#                 buffer.append(token)
+#                 count += 1
+
+#                 if count % 7 == 0 and count > 27:
+#                     buffer_to_proc = buffer[-28:]
+#                     audio_samples = convert_to_audio(buffer_to_proc, count)
+#                     if audio_samples is not None:
+#                         yield audio_samples
+
+
+
+def fade_in(audio_bytes, fade_ms=15, sr=24000):
+    audio = np.frombuffer(audio_bytes, dtype=np.int16).astype(np.float32)
+    fade_len = int(sr * fade_ms / 1000)
+    window = np.linspace(0, 1, fade_len)
+    audio[:fade_len] *= window
+    return audio.astype(np.int16).tobytes()
+
 async def tokens_decoder(token_gen):
     buffer = []
     count = 0
+    consecutive_nones = 0
+    first_chunk_sent = False
+    
     async for token_sim in token_gen:       
         token = turn_token_into_id(token_sim, count)
+        
+        # Handle None tokens
+        # if token == 49158:
+        #    print("EOS reached, stopping stream")
+        #    break
         if token is None:
-            pass
+            consecutive_nones += 1
+            if consecutive_nones >= 2:
+                break
+            continue
         else:
-            if token > 0:
-                buffer.append(token)
-                count += 1
-
-                if count % 7 == 0 and count > 27:
-                    buffer_to_proc = buffer[-28:]
-                    audio_samples = convert_to_audio(buffer_to_proc, count)
-                    if audio_samples is not None:
-                        yield audio_samples
+            consecutive_nones = 0
+            
+        if token > 0:
+            buffer.append(token)
+            count += 1
+            
+            # Fast first chunk (with padding if needed)
+            if not first_chunk_sent and len(buffer) >= 14:
+                # Pad to 28 tokens for first chunk
+                # padded = buffer + [buffer[-1]] * (28 - len(buffer))
+                buffer_to_proc = buffer[-14:]
+                audio_samples = convert_to_audio(buffer_to_proc, count) #audio_bytes
+                audio_samples = fade_in(audio_samples)
+                if audio_samples is not None:
+                    yield audio_samples
+                    first_chunk_sent = True
+            
+            # Regular processing after first chunk
+            elif first_chunk_sent and count % 7 == 0 and len(buffer) >= 28:
+                buffer_to_proc = buffer[-28:]
+                audio_samples = convert_to_audio(buffer_to_proc, count)
+                if audio_samples is not None:
+                    yield audio_samples
 
 
 # ------------------ Synchronous Tokens Decoder Wrapper ------------------ #
