@@ -49,11 +49,11 @@ Baseten is our [preferred inference partner](https://www.baseten.co/blog/canopy-
 
 1. Clone this repo
    ```bash
-   git clone https://github.com/canopyai/Orpheus-TTS.git
+   git clone https://github.com/telecmi/Orpheus-TTS.git
    ```
 2. Navigate and install packages
    ```bash
-   cd Orpheus-TTS && pip install orpheus-speech # uses vllm under the hood for fast inference
+   cd /home/user/voice/orpheus/Orpheus-TTS/orpheus_tts_pypi/orpheus_tts && pip install -e . # uses vllm under the hood for fast inference
    ```
    vllm pushed a slightly buggy version on March 18th so some bugs are being resolved by reverting to `pip install vllm==0.7.3` after `pip install orpheus-speech`
 
@@ -67,7 +67,7 @@ Baseten is our [preferred inference partner](https://www.baseten.co/blog/canopy-
    ## checkpoints folder form huggingface 
    ## https://huggingface.co/telecmiusa/OrpheusTTS/tree/main/checkpoints
    
-   model = OrpheusModel(model_name ="checkpoints", max_model_len=2048)
+   model = OrpheusModel(model_name ="telecmiusa/OrpheusTTS", max_model_len=2048)
    prompt ='''Delhi की एक retail chain ने हमारे solutions से अपनी sales में 30% तक वृद्धि देखी है। <hmm..> उनका feedback बहुत encouraging रहा है ।'''
    filename = "prompt-hi.wav"
    start_time = time.monotonic()
