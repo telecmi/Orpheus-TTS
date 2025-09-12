@@ -99,11 +99,12 @@ Baseten is our [preferred inference partner](https://www.baseten.co/blog/canopy-
 
 5. Run the example for voice cloning
  ```python
- 
+
+# check voice_clone/clone.py script 
 from voice_clone import OrpheusTTSVoiceClone
+from pathlib import Path
 
-
-voice_cloner = OrpheusTTSVoiceClone(device="cuda")
+voice_cloner = OrpheusTTSVoiceClone(model_name = "SachinTelecmi/Orpheus-tts-hi",device="cuda")
     
 # Text to synthesize
 target_texts = [
