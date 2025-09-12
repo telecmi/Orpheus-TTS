@@ -99,35 +99,36 @@ Baseten is our [preferred inference partner](https://www.baseten.co/blog/canopy-
 
 5. Run the example for voice cloning
  ```python
+ 
 from voice_clone import OrpheusTTSVoiceClone
 
 
 voice_cloner = OrpheusTTSVoiceClone(device="cuda")
     
-    # Text to synthesize
-    target_texts = [
-        "Hi IIT madras is currently doing great for indian research and its proud to be associated with it."
-    ]
-    
-    reference_pairs = [(".voice_clone/input_reference.wav", 
-                        "Delhi की एक retail chain ने हमारे solutions से अपनी sales में 30% तक वृद्धि देखी है। <hmm..> उनका feedback बहुत encouraging रहा है ।")]
-    # Process each reference
-    for audio_path, transcript in reference_pairs:
-        print(f"Processing reference: {audio_path} - {transcript}")
-        
-        # Clone voice
-        cloned_audio = voice_cloner.clone_voice(audio_path, transcript, target_texts)
-        
-        # Prepare output paths
-        audio_stem = Path(audio_path).stem
-        output_dir = Path(audio_path).parent / "inference"
-        output_paths = [
-            str(output_dir / f"{audio_stem}_{i}.wav") 
-            for i in range(len(target_texts))
-        ]
-        
-        # Save cloned audio
-        voice_cloner.save_audio(cloned_audio, output_paths)
+# Text to synthesize
+target_texts = [
+   "Hi IIT madras is currently doing great for indian research and its proud to be associated with it."
+]
+
+reference_pairs = [(".voice_clone/input_reference.wav", 
+                  "Delhi की एक retail chain ने हमारे solutions से अपनी sales में 30% तक वृद्धि देखी है। <hmm..> उनका feedback बहुत encouraging रहा है ।")]
+# Process each reference
+for audio_path, transcript in reference_pairs:
+   print(f"Processing reference: {audio_path} - {transcript}")
+   
+   # Clone voice
+   cloned_audio = voice_cloner.clone_voice(audio_path, transcript, target_texts)
+   
+   # Prepare output paths
+   audio_stem = Path(audio_path).stem
+   output_dir = Path(audio_path).parent / "inference"
+   output_paths = [
+      str(output_dir / f"{audio_stem}_{i}.wav") 
+      for i in range(len(target_texts))
+   ]
+   
+   # Save cloned audio
+   voice_cloner.save_audio(cloned_audio, output_paths)
 
 ```
 
