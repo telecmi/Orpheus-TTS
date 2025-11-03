@@ -92,6 +92,7 @@ def convert_to_audio(multiframe, count):
     with torch.inference_mode():   
         audio_hat = model.decode(codes)
         audio_slice = audio_hat[:, :, 2048:4096]  # ORIGINAL SLICE
+        # audio_slice = audio_hat[:, :, -6144]  # ORIGINAL SLICE
         
         if snac_device == "cuda":
             audio_int16_tensor = (audio_slice * 32767.0).round().to(torch.int16)
@@ -111,7 +112,7 @@ async def tokens_decoder(token_gen):
     first_chunk_sent = False
     MIN_FRAMES_FIRST = 7      # 1 frame for ultra-low latency
     MIN_FRAMES_SUBSEQ = 28    # 6 frames (increased from 28 to support 6144 samples)
-    PROCESS_EVERY = 7        # Process every 3 frames (changed from 14 to match timing)
+    PROCESS_EVERY = 7       # Process every 3 frames (changed from 14 to match timing)
 
     async for token_sim in token_gen:
         token = turn_token_into_id(token_sim, count)
